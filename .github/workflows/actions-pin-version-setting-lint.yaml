@@ -47,6 +47,7 @@ jobs:
         with:
           # Only needs the base of the branch
           ref: ${{ github.head_ref }}
+          # Only the top commit
           fetch-depth: 1
 
       - name: Run gha-fix pin and capture diff
@@ -113,28 +114,38 @@ jobs:
         if: steps.pin.outputs.has_changes == 'true' || steps.timeout.outputs.has_changes == 'true'
         shell: bash
         run: |
-          set -x
           set -euo pipefail
           
           TARGET="Linux_x86_64"
           REPO="reviewdog/reviewdog"
           
-          # Get the latest tag (e.g., v0.20.3)
-          LATEST_TAG=$(curl --silent --show-error --fail \
-            https://api.github.com/repos/${REPO}/releases/latest \
-            | python - <<'PY'
+          API="https://api.github.com/repos/${REPO}/releases/latest"
+          AUTH_HEADER=()
+          if [ -n "${GITHUB_TOKEN:-}" ]; then
+            AUTH_HEADER=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+          fi
+          
+          resp=$(curl --fail --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            "${AUTH_HEADER[@]}" \
+            "${API}")
+          
+          LATEST_TAG=$(printf '%s' "$resp" | python - <<'PY'
           import json, sys
           data = json.load(sys.stdin)
           print(data["tag_name"])
           PY
           )
           
-          VERSION=${LATEST_TAG#v}
+          if [ -z "$LATEST_TAG" ]; then
+            echo "Failed to determine latest tag from ${API}" >&2
+            exit 1
+          fi
           
+          VERSION=${LATEST_TAG#v}
           TARBALL="reviewdog_${VERSION}_${TARGET}.tar.gz"
           CHECKSUM_FILE="reviewdog_${VERSION}_checksums.txt"
           
-          # Download tarball and checksum file
           curl --silent --show-error --fail --connect-timeout 3 --max-time 10 --retry 3 \
             --location --remote-name \
             "https://github.com/${REPO}/releases/download/${LATEST_TAG}/${TARBALL}"
@@ -143,10 +154,8 @@ jobs:
             --location --remote-name \
             "https://github.com/${REPO}/releases/download/${LATEST_TAG}/${CHECKSUM_FILE}"
           
-          # Verify checksum
           grep " ${TARBALL}$" "${CHECKSUM_FILE}" | sha256sum -c -
           
-          # Extract and install
           tar --extract --gzip --file "${TARBALL}" --verbose
           sudo install reviewdog /usr/local/bin/reviewdog
           
