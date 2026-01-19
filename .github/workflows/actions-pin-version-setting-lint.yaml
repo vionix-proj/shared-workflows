@@ -1,5 +1,5 @@
 name: actions-pin-version-setting-lint
-run-name: 🚨 linting github actions pinning version and settings at ${{ github.repository }} 
+run-name: 🚨 linting github actions pinning version and settings ${{ github.repository }}@${{ github.head_ref }}:${{ github.event.pull_request.head.sha }}
 
 on: 
   workflow_call:
