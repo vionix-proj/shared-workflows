@@ -150,7 +150,7 @@ jobs:
           reviewdog -f=diff -f.diff.strip=1 -name="gha-fix timeout" -reporter=github-pr-review -tee -filter-mode=nofilter < ${{ steps.timeout.outputs.diff_file }}
 
       - name: Fail workflow
-        if: ${{ inputs.fail-on-error == 'true' }}
+        if: inputs.fail-on-error
         shell: bash
         run: |
           echo "::error ::Failure for found reviewdog install"
