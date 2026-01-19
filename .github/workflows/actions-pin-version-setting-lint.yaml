@@ -57,7 +57,8 @@ jobs:
           IGNORE_DIRS: ${{ inputs.ignore-dirs }}
         shell: bash
         run: |
-          tree -a
+          echo "Current dir structure"
+          tree -a -I '.git'
           set -x
           PIN_DIFF_FILE="$(mktemp)"
           echo "diff_file=${PIN_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
