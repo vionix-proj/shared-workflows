@@ -153,5 +153,5 @@ jobs:
         if: inputs.fail-on-error
         shell: bash
         run: |
-          echo "::error ::Failure for found reviewdog install"
+          echo "::error ::Failure for missing pinning versions and/or timeout properties!"
           exit 1
