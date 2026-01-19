@@ -114,53 +114,16 @@ jobs:
         if: steps.pin.outputs.has_changes == 'true' || steps.timeout.outputs.has_changes == 'true'
         shell: bash
         run: |
-          set -euo pipefail
-          
-          TARGET="Linux_x86_64"
-          REPO="reviewdog/reviewdog"
-          
-          API="https://api.github.com/repos/${REPO}/releases/latest"
-          AUTH_HEADER=()
-          if [ -n "${GITHUB_TOKEN:-}" ]; then
-            AUTH_HEADER=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-          fi
-          
-          resp=$(curl --fail-with-body --silent --show-error \
-            -H "Accept: application/vnd.github+json" \
-            "${AUTH_HEADER[@]}" \
-            "${API}")
-          
-          LATEST_TAG=$(printf '%s' "$resp" | python - <<'PY'
-          import json, sys
-          data = json.load(sys.stdin)
-          print(data.get("tag_name", ""))
-          PY
-          )
-          
-          if [ -z "$LATEST_TAG" ]; then
-            echo "Failed to determine latest tag from ${API}" >&2
-            printf 'Response was:\n%s\n' "$resp" >&2
-            exit 1
-          fi
-          
-          VERSION=${LATEST_TAG#v}
-          TARBALL="reviewdog_${VERSION}_${TARGET}.tar.gz"
-          CHECKSUM_FILE="checksums.txt"  # asset name in the release
-          
+          set -x
+          VERSION=0.20.3
+          TARGET=Linux_x86_64
+          SHA256_SUM=2c634dbc00bd4a86e4d4c47029d2af9185fab06643a9df0ae10e7c4d644781b6
           curl --silent --show-error --fail --connect-timeout 3 --max-time 10 --retry 3 \
             --location --remote-name \
-            "https://github.com/${REPO}/releases/download/${LATEST_TAG}/${TARBALL}"
-          
-          curl --silent --show-error --fail --connect-timeout 3 --max-time 10 --retry 3 \
-            --location --remote-name \
-            "https://github.com/${REPO}/releases/download/${LATEST_TAG}/${CHECKSUM_FILE}"
-          
-          grep " ${TARBALL}$" "${CHECKSUM_FILE}" | sha256sum -c -
-          
-          tar --extract --gzip --file "${TARBALL}" --verbose
+            "https://github.com/reviewdog/reviewdog/releases/download/v${VERSION}/reviewdog_${VERSION}_${TARGET}.tar.gz"
+          echo "${SHA256_SUM} reviewdog_${VERSION}_${TARGET}.tar.gz" | sha256sum -c
+          tar --extract --gzip --file "reviewdog_${VERSION}_${TARGET}.tar.gz" --verbose
           sudo install reviewdog /usr/local/bin/reviewdog
-          
-          echo "Installed reviewdog ${LATEST_TAG} for ${TARGET}"
 
       - name: Report gha-fix pin suggestions with reviewdog
         if: steps.pin.outputs.has_changes == 'true'
