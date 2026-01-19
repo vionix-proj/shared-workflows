@@ -10,17 +10,17 @@ on:
         required: false
         default: ""
 
+      ignore-dirs:
+        description: "List of dirs to be ignored as in --ignore-dirs=.git,node_modules,dist,out,vendor,.idea,.vscode"
+        required: false
+        type: string
+        default: ""
+
       github-policies:
-        description: "GitHub's SHA pinning enforcement policy and others"
+        description: "GitHub's SHA pinning enforcement policy and others for actions"
         required: false
         type: string
         default: --strict-pinning-202508
-
-      ignore-dirs:
-        description: "List of dirs to be ignored"
-        required: false
-        type: string
-        default: --ignore-dirs=.git,node_modules,dist,out,vendor,.idea,.vscode pin
 
       gha-fix-version:
         description: "List of dirs to be ignored"
@@ -59,13 +59,26 @@ jobs:
         id: pin
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IGNORE_OWNERS: ${{ inputs.ignore-owners }}
+          IGNORE_DIRS: ${{ inputs.ignore-dirs }}
+          GITHUB_POLICIES: ${{ inputs.github-policies }}
         shell: bash
         run: |
           set -x
           PIN_DIFF_FILE="$(mktemp)"
           echo "diff_file=${PIN_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
 
-          gha-fix pin ${{ inputs.ignore-owners }} ${{ inputs.github-policies }} ${{ inputs.ignore-dirs }} -l debug
+          if [ -n "${IGNORE_OWNERS}" ]; then
+            IGNORE_OWNERS="--ignore-owners ${IGNORE_OWNERS}"
+          fi
+
+          if [ -n "${IGNORE_DIRS}" ]; then
+            IGNORE_DIRS="--ignore-dirs=${IGNORE_DIRS}"
+          fi
+          
+          =.git,node_modules,dist,out,vendor,.idea,.vscode
+          
+          gha-fix pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug
 
           git diff > "${PIN_DIFF_FILE}"
 
