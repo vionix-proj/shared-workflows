@@ -68,16 +68,15 @@ jobs:
           PIN_DIFF_FILE="$(mktemp)"
           echo "diff_file=${PIN_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
 
-          if [ -n "${IGNORE_OWNERS}" ]; then
-            IGNORE_OWNERS="--ignore-owners ${IGNORE_OWNERS}"
+          if [ "${IGNORE_OWNERS}" != "" ]; then
+            IGNORE_OWNERS="--ignore-owners=${IGNORE_OWNERS}"
           fi
 
-          if [ -n "${IGNORE_DIRS}" ]; then
+          if [ "${IGNORE_DIRS}" != "" ]; then
             IGNORE_DIRS="--ignore-dirs=${IGNORE_DIRS}"
           fi
-          
-          =.git,node_modules,dist,out,vendor,.idea,.vscode
-          
+
+          echo "🏃 Running gha-fix pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug"
           gha-fix pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug
 
           git diff > "${PIN_DIFF_FILE}"
