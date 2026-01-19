@@ -150,7 +150,7 @@ jobs:
           reviewdog -f=diff -f.diff.strip=1 -name="gha-fix timeout" -reporter=github-pr-review -tee -filter-mode=nofilter < ${{ steps.timeout.outputs.diff_file }}
 
       - name: Fail workflow
-        if: inputs.fail-on-error
+        if: inputs.fail-on-error && (steps.pin.outputs.has_changes == 'true' || steps.timeout.outputs.has_changes == 'true')
         shell: bash
         run: |
           echo "::error ::Failure for missing pinning versions and/or timeout properties!"
