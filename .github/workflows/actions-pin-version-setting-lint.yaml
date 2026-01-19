@@ -125,7 +125,7 @@ jobs:
             AUTH_HEADER=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
           fi
           
-          resp=$(curl --fail --silent --show-error \
+          resp=$(curl --fail-with-body --silent --show-error \
             -H "Accept: application/vnd.github+json" \
             "${AUTH_HEADER[@]}" \
             "${API}")
@@ -133,18 +133,19 @@ jobs:
           LATEST_TAG=$(printf '%s' "$resp" | python - <<'PY'
           import json, sys
           data = json.load(sys.stdin)
-          print(data["tag_name"])
+          print(data.get("tag_name", ""))
           PY
           )
           
           if [ -z "$LATEST_TAG" ]; then
             echo "Failed to determine latest tag from ${API}" >&2
+            printf 'Response was:\n%s\n' "$resp" >&2
             exit 1
           fi
           
           VERSION=${LATEST_TAG#v}
           TARBALL="reviewdog_${VERSION}_${TARGET}.tar.gz"
-          CHECKSUM_FILE="reviewdog_${VERSION}_checksums.txt"
+          CHECKSUM_FILE="checksums.txt"  # asset name in the release
           
           curl --silent --show-error --fail --connect-timeout 3 --max-time 10 --retry 3 \
             --location --remote-name \
