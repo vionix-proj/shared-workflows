@@ -1,0 +1,161 @@
+name: actions-pin-version-setting-lint
+run-name: 🚨 linting github actions pinning version and settings at ${{ github.repository }} 
+
+on: 
+  workflow_call:
+    inputs:
+      ignore-owners:
+        description: "List of users to be ignored # Ignore specific owners like --ignore-owners=actions,github"
+        type: string
+        required: false
+        default: ""
+
+      github-policies:
+        description: "GitHub's SHA pinning enforcement policy and others"
+        required: false
+        type: string
+        default: --strict-pinning-202508
+
+      ignore-dirs:
+        description: "List of dirs to be ignored"
+        required: false
+        type: string
+        default: --ignore-dirs=.git,node_modules,dist,out,vendor,.idea,.vscode pin
+
+      gha-fix-version:
+        description: "List of dirs to be ignored"
+        required: false
+        type: string
+        default: latest
+
+jobs:
+  lint:
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Install gha-fix
+        shell: bash
+        run: |
+          set -x
+          VERSION=${{ inputs.gha-fix-version }}
+          curl --silent --show-error --fail --connect-timeout 3 --max-time 10 --retry 3 \
+            --location --remote-name \
+            "https://github.com/Finatext/gha-fix/releases/${VERSION}/download/gha-fix_Linux_x86_64.tar.gz"
+          
+          # No fixed SHA256 for "latest"; if you need integrity, fetch and verify the release’s checksum file instead.
+          tar --extract --gzip --file gha-fix_Linux_x86_64.tar.gz --verbose
+          sudo install gha-fix /usr/local/bin/gha-fix
+
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          ref: ${{ github.head_ref }}
+          sparse-checkout: .github
+
+      - name: Run gha-fix pin and capture diff
+        id: pin
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -x
+          PIN_DIFF_FILE="$(mktemp)"
+          echo "diff_file=${PIN_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
+
+          gha-fix pin ${{ inputs.ignore-owners }} ${{ inputs.github-policies }} ${{ inputs.ignore-dirs }} -l debug
+
+          git diff > "${PIN_DIFF_FILE}"
+
+          if [[ -s "${PIN_DIFF_FILE}" ]]; then
+            echo "has_changes=true" >> "${GITHUB_OUTPUT}"
+            cat "${PIN_DIFF_FILE}"
+          else
+            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          git reset --hard HEAD
+
+      - name: Run gha-fix timeout and capture diff
+        id: timeout
+        shell: bash
+        run: |
+          set -x
+          TIMEOUT_DIFF_FILE="$(mktemp)"
+          echo "diff_file=${TIMEOUT_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
+
+          gha-fix timeout -l debug
+
+          git diff > "${TIMEOUT_DIFF_FILE}"
+
+          if [[ -s "${TIMEOUT_DIFF_FILE}" ]]; then
+            echo "has_changes=true" >> "${GITHUB_OUTPUT}"
+            cat "${TIMEOUT_DIFF_FILE}"
+          else
+            echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          git reset --hard HEAD
+
+      - name: Install reviewdog
+        if: steps.pin.outputs.has_changes == 'true' || steps.timeout.outputs.has_changes == 'true'
+        shell: bash
+        run: |
+          set -x
+          set -euo pipefail
+          
+          TARGET="Linux_x86_64"
+          REPO="reviewdog/reviewdog"
+          
+          # Get the latest tag (e.g., v0.20.3)
+          LATEST_TAG=$(curl --silent --show-error --fail \
+            https://api.github.com/repos/${REPO}/releases/latest \
+            | python - <<'PY'
+          import json, sys
+          data = json.load(sys.stdin)
+          print(data["tag_name"])
+          PY
+          )
+          
+          VERSION=${LATEST_TAG#v}
+          
+          TARBALL="reviewdog_${VERSION}_${TARGET}.tar.gz"
+          CHECKSUM_FILE="reviewdog_${VERSION}_checksums.txt"
+          
+          # Download tarball and checksum file
+          curl --silent --show-error --fail --connect-timeout 3 --max-time 10 --retry 3 \
+            --location --remote-name \
+            "https://github.com/${REPO}/releases/download/${LATEST_TAG}/${TARBALL}"
+          
+          curl --silent --show-error --fail --connect-timeout 3 --max-time 10 --retry 3 \
+            --location --remote-name \
+            "https://github.com/${REPO}/releases/download/${LATEST_TAG}/${CHECKSUM_FILE}"
+          
+          # Verify checksum
+          grep " ${TARBALL}$" "${CHECKSUM_FILE}" | sha256sum -c -
+          
+          # Extract and install
+          tar --extract --gzip --file "${TARBALL}" --verbose
+          sudo install reviewdog /usr/local/bin/reviewdog
+          
+          echo "Installed reviewdog ${LATEST_TAG} for ${TARGET}"
+
+      - name: Report gha-fix pin suggestions with reviewdog
+        if: steps.pin.outputs.has_changes == 'true'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -x
+          reviewdog -f=diff -f.diff.strip=1 -name="gha-fix pin" -reporter=github-pr-review -tee -filter-mode=nofilter < ${{ steps.pin.outputs.diff_file }}
+
+      - name: Report gha-fix timeout suggestions with reviewdog
+        if: steps.timeout.outputs.has_changes == 'true'
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -x
+          reviewdog -f=diff -f.diff.strip=1 -name="gha-fix timeout" -reporter=github-pr-review -tee -filter-mode=nofilter < ${{ steps.timeout.outputs.diff_file }}
