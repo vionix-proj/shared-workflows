@@ -63,7 +63,7 @@ jobs:
           GITHUB_POLICIES: ${{ inputs.github-policies }}
         shell: bash
         run: |
-          tree 
+          tree -a
           set -x
           PIN_DIFF_FILE="$(mktemp)"
           echo "diff_file=${PIN_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
@@ -96,6 +96,7 @@ jobs:
         id: timeout
         shell: bash
         run: |
+          tree -a
           set -x
           TIMEOUT_DIFF_FILE="$(mktemp)"
           echo "diff_file=${TIMEOUT_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
