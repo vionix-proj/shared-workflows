@@ -75,7 +75,7 @@ jobs:
           if [ "${IGNORE_DIRS}" != "" ]; then
             IGNORE_DIRS="--ignore-dirs=${IGNORE_DIRS}"
           else
-            IGNORE_DIRS='--ignore-dirs= ""'
+            IGNORE_DIRS='--ignore-dirs=""'
           fi
 
           echo "🏃 Running gha-fix pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug"
