@@ -27,6 +27,13 @@ on:
         type: boolean
         default: true
 
+      sha-pinning-docker-image:
+        description: "Docker image to use"
+        required: false
+        type: string
+        default: "ghcr.io/marcellodesales/gha-sha-pinning:v4.0.0"
+        
+
 jobs:
   lint:
     timeout-minutes: 10
@@ -36,19 +43,6 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - name: Install gha-fix
-        shell: bash
-        run: |
-          set -x
-          VERSION=${{ inputs.gha-fix-version }}
-          curl --silent --show-error --fail --connect-timeout 3 --max-time 10 --retry 3 \
-            --location --remote-name \
-            "https://github.com/Finatext/gha-fix/releases/${VERSION}/download/gha-fix_Linux_x86_64.tar.gz"
-          
-          # No fixed SHA256 for "latest"; if you need integrity, fetch and verify the release’s checksum file instead.
-          tar --extract --gzip --file gha-fix_Linux_x86_64.tar.gz --verbose
-          sudo install gha-fix /usr/local/bin/gha-fix
-
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           # Only needs the base of the branch
@@ -81,7 +75,7 @@ jobs:
           fi
 
           echo "🏃 Running gha-fix pin ${IGNORE_DIRS} ${IGNORE_OWNERS} --strict-pinning-202508 -l debug"
-          gha-fix pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug
+          docker run --rm -v $(pwd):$(pwd) -w $(pwd) -e GITHUB_TOKEN sha-pinning-docker-image pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug
 
           git diff > "${PIN_DIFF_FILE}"
 
@@ -103,7 +97,7 @@ jobs:
           TIMEOUT_DIFF_FILE="$(mktemp)"
           echo "diff_file=${TIMEOUT_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
 
-          gha-fix timeout -l debug
+          docker run --rm -v $(pwd):$(pwd) -w $(pwd) -e GITHUB_TOKEN sha-pinning-docker-image timeout -l debug
 
           git diff > "${TIMEOUT_DIFF_FILE}"
 
