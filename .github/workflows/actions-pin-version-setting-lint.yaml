@@ -75,7 +75,7 @@ jobs:
           fi
 
           echo "🏃 Running gha-fix pin ${IGNORE_DIRS} ${IGNORE_OWNERS} --strict-pinning-202508 -l debug"
-          docker run --rm -v $(pwd):$(pwd) -w $(pwd) -e GITHUB_TOKEN sha-pinning-docker-image pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug
+          docker run --rm -u "$(id -u):$(id -g)" -v $(pwd):$(pwd) -w $(pwd) -e HOME=/tmp -e GITHUB_TOKEN sha-pinning-docker-image pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug
 
           git diff > "${PIN_DIFF_FILE}"
 
@@ -97,7 +97,7 @@ jobs:
           TIMEOUT_DIFF_FILE="$(mktemp)"
           echo "diff_file=${TIMEOUT_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
 
-          docker run --rm -v $(pwd):$(pwd) -w $(pwd) -e GITHUB_TOKEN sha-pinning-docker-image timeout -l debug
+          docker run --rm -u "$(id -u):$(id -g)" -v $(pwd):$(pwd) -w $(pwd) -e HOME=/tmp -e GITHUB_TOKEN sha-pinning-docker-image timeout -l debug
 
           git diff > "${TIMEOUT_DIFF_FILE}"
 
