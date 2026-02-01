@@ -3,6 +3,12 @@ name: actions-pin-version-setting-lint
 on: 
   workflow_call:
     inputs:
+      github-actions-runner:
+        description: "Docker-in-docker (dind) runner to use base label"
+        required: false
+        type: string
+        default: ubuntu-latest
+
       ignore-owners:
         description: "List of users to be ignored # Ignore specific owners like --ignore-owners=actions,github"
         type: string
@@ -15,11 +21,17 @@ on:
         type: string
         default: ""
 
-      gha-fix-version:
-        description: "List of dirs to be ignored"
+      use-strict-pinning:
+        description: "Everything is pinned no matter what! That's the Github Actions Policy"
         required: false
         type: string
-        default: latest
+        default: "false"
+
+      filter-by:
+        description: "Controls file restriction for gha-fix. any-after-ignored scans repo; only-pr-changed-files restricts to files changed in the PR."
+        required: false
+        type: string
+        default: "only-pr-changed-files"  # any-after-ignored or only-pr-changed-files
 
       fail-on-error:
         description: "If it's to fail or not"
@@ -27,21 +39,31 @@ on:
         type: boolean
         default: true
 
+      gha-fix-include-timeout:
+        description: "If it's to also pin the timeout settings on github actions"
+        required: false
+        type: boolean
+        default: false
+
       sha-pinning-docker-image:
-        description: "Docker image to use"
+        description: "Docker image to use for the CLI"
         required: false
         type: string
-        default: "ghcr.io/marcellodesales/gha-sha-pinning:v4.0.0"
-        
+        # Until https://github.com/Finatext/gha-fix/pull/20 is merged
+        default: ghcr.io/marcellodesales/gha-sha-pinning:v4.0.0-6033b11
 
 jobs:
-  lint:
+  version-sha:
+    name: 🔢 action-version-sha
     timeout-minutes: 10
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.github-actions-runner }}
     if: github.event.pull_request.draft == false
     permissions:
+      # https://github.com/reviewdog/action-suggester?tab=readme-ov-file#required-permissions
       contents: read
       pull-requests: write
+      checks: write
+      issues: write
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
@@ -50,32 +72,97 @@ jobs:
           # Only the top commit
           fetch-depth: 1
 
+      - name: Filter list of PR files
+        id: pr-files
+        if: ${{ inputs.filter-by == 'only-pr-changed-files' }}
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          CURRENT_REPO: ${{ github.repository }}
+          GH_API_URL: ${{ github.api_url }}
+        run: |
+            # Collect changed files from GitHub API (paginate)
+            # Requires jq (usually installed on ubuntu runners; if not, install it)
+            files_json="$(mktemp)"
+            page=1
+            per_page=100
+            : > "$files_json"
+
+            while :; do
+              resp="$(curl -sfL \
+                -H "Authorization: Bearer ${{ github.token }}" \
+                -H "Accept: application/vnd.github+json" \
+                "${GH_API_URL}/repos/${CURRENT_REPO}/pulls/${PR_NUMBER}/files?per_page=${per_page}&page=${page}")"
+              count="$(echo "$resp" | jq 'length')"
+              if [ "$count" -eq 0 ]; then
+                break
+              fi
+              echo "$resp" >> "$files_json"
+              page=$((page+1))
+            done
+
+            # Extract filenames, keep only relevant YAML (tune filters as you like)
+            # Include workflows + .github/*.yml/.yaml
+            changed_files="$(jq -r '.[].filename' "$files_json" \
+              | grep -E '^\.github/workflows/.*\.(yml|yaml)$|^\.github/.*\.(yml|yaml)$' \
+              || true)"
+
+            # Turn newline list into comma list
+            restrict_list="$(echo "$changed_files" | paste -sd, -)"
+            echo "Discovered list of filtered PR files for GHA-fix: ${restricted_list}"
+            echo "changed-files=${restrict_list}" >> $GITHUB_OUTPUT
+
       - name: Run gha-fix pin and capture diff
         id: pin
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # The token from the workflow itself, serving the pin for the ghes repos
+          # GHES_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # When there's an OSS github marketplace action, then we need SaaS token
+          # GITHUB_TOKEN: ${{ steps.gh-app-token.outputs.token }} Automatically placed by the job
           IGNORE_OWNERS: ${{ inputs.ignore-owners }}
           IGNORE_DIRS: ${{ inputs.ignore-dirs }}
+          USE_STRICT_PINNING: ${{ inputs.use-strict-pinning }}
+          FILTER_BY: ${{ inputs.filter-by }}
+          LIST_RESTRICTED_FILES: ${{ steps.pr-files.outputs.changed-files }}
         shell: bash
         run: |
-          echo "Current dir structure"
-          tree -a -I '.git'
+          set -euo pipefail
           set -x
+
           PIN_DIFF_FILE="$(mktemp)"
           echo "diff_file=${PIN_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
 
-          if [ "${IGNORE_OWNERS}" != "" ]; then
-            IGNORE_OWNERS="--ignore-owners=${IGNORE_OWNERS}"
+          STRICT_PINNING=
+          if [ "${USE_STRICT_PINNING}" = "true" ]; then
+            STRICT_PINNING="--strict-pinning-202508"
           fi
 
-          if [ "${IGNORE_DIRS}" != "" ]; then
-            IGNORE_DIRS="--ignore-dirs=${IGNORE_DIRS}"
-          else
-            IGNORE_DIRS='--ignore-dirs=""'
+          IGNORE_OWNERS_ARG=
+          if [ -n "${IGNORE_OWNERS}" ]; then
+            IGNORE_OWNERS_ARG="--ignore-owners=${IGNORE_OWNERS}"
           fi
 
-          echo "🏃 Running gha-fix pin ${IGNORE_DIRS} ${IGNORE_OWNERS} --strict-pinning-202508 -l debug"
-          docker run --rm -u "$(id -u):$(id -g)" -v $(pwd):$(pwd) -w $(pwd) -e HOME=/tmp -e GITHUB_TOKEN sha-pinning-docker-image pin ${IGNORE_DIRS} ${IGNORE_OWNERS} ${GITHUB_POLICIES} -l debug
+          IGNORE_DIRS_ARG=
+          if [ -n "${IGNORE_DIRS}" ]; then
+            IGNORE_DIRS_ARG="--ignore-dirs=${IGNORE_DIRS}"
+          fi
+
+          RESTRICT_FILES_ARG=
+          if [ "${FILTER_BY}" = "only-pr-changed-files" ]; then
+            if [ -n "$LIST_RESTRICTED_FILES" ]; then
+              RESTRICT_FILES_ARG="--restrict-to-files=${LIST_RESTRICTED_FILES}"
+            else
+              echo "gha-fix does not match anything because the PR has no files!"
+              echo "has_changes=false" >> "${GITHUB_OUTPUT}"
+              exit 0
+            fi
+          fi
+
+          echo "🏃 Running gha-fix pin ${IGNORE_DIRS_ARG} ${IGNORE_OWNERS_ARG} ${STRICT_PINNING} ${RESTRICT_FILES_ARG} -l debug"
+          docker run --rm -u "$(id -u):$(id -g)" \
+            -v "$(pwd):$(pwd)" -w "$(pwd)" \
+            -e HOME=/tmp -e GITHUB_API_URL -e GHES_GITHUB_TOKEN -e GITHUB_TOKEN \
+            ${{ inputs.sha-pinning-docker-image }} \
+            pin ${IGNORE_DIRS_ARG} ${IGNORE_OWNERS_ARG} ${STRICT_PINNING} ${RESTRICT_FILES_ARG} -l debug
 
           git diff > "${PIN_DIFF_FILE}"
 
@@ -86,18 +173,23 @@ jobs:
             echo "has_changes=false" >> "${GITHUB_OUTPUT}"
           fi
 
-          git reset --hard HEAD
-
       - name: Run gha-fix timeout and capture diff
         id: timeout
+        if: ${{ inputs.gha-fix-include-timeout == 'true' }}
         shell: bash
+        # env:
+          # The token from the workflow itself, serving the pin for the ghes repos
+          # GHES_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # When there's an OSS github marketplace action, then we need SaaS token
+          # GITHUB_TOKEN: ${{ steps.gh-app-token.outputs.token }} only when GHES... placed by the Job
         run: |
           tree -a
           set -x
           TIMEOUT_DIFF_FILE="$(mktemp)"
           echo "diff_file=${TIMEOUT_DIFF_FILE}" >> "${GITHUB_OUTPUT}"
 
-          docker run --rm -u "$(id -u):$(id -g)" -v $(pwd):$(pwd) -w $(pwd) -e HOME=/tmp -e GITHUB_TOKEN sha-pinning-docker-image timeout -l debug
+          echo "🏃 Running gha-fix timeout -l debug"
+          docker run --rm -u "$(id -u):$(id -g)" -v $(pwd):$(pwd) -w $(pwd) -e HOME=/tmp -e GITHUB_API_URL -e GHES_GITHUB_TOKEN -e GITHUB_TOKEN ${{ inputs.sha-pinning-docker-image }} timeout -l debug
 
           git diff > "${TIMEOUT_DIFF_FILE}"
 
@@ -108,7 +200,8 @@ jobs:
             echo "has_changes=false" >> "${GITHUB_OUTPUT}"
           fi
 
-          git reset --hard HEAD
+          # Just dont do that as review dog needs the changes
+          # git reset --hard HEAD
 
       - name: Install reviewdog
         if: steps.pin.outputs.has_changes == 'true' || steps.timeout.outputs.has_changes == 'true'
@@ -129,19 +222,25 @@ jobs:
         if: steps.pin.outputs.has_changes == 'true'
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEWDOG_GITHUB_API: ${{ github.api_url }}
         shell: bash
         run: |
           set -x
-          reviewdog -f=diff -f.diff.strip=1 -name="gha-fix pin" -reporter=github-pr-review -tee -filter-mode=nofilter < ${{ steps.pin.outputs.diff_file }}
+          # Using the PR -reporter=github-pr-check so it uses the check API for all the files outside of the PR by default
+          # TODO: Use the -reporter=github-pr-review for what's in the PR only
+          reviewdog -f=diff -f.diff.strip=1 -name="vionix gha pin" -reporter=github-pr-review -tee -filter-mode=nofilter < "${{ steps.pin.outputs.diff_file }}"
 
       - name: Report gha-fix timeout suggestions with reviewdog
         if: steps.timeout.outputs.has_changes == 'true'
         env:
           REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEWDOG_GITHUB_API: ${{ github.api_url }}
         shell: bash
         run: |
           set -x
-          reviewdog -f=diff -f.diff.strip=1 -name="gha-fix timeout" -reporter=github-pr-review -tee -filter-mode=nofilter < ${{ steps.timeout.outputs.diff_file }}
+          # Using the PR -reporter=github-pr-check so it uses the check API for all the files outside of the PR by default
+          # TODO: Use the -reporter=github-pr-review for what's in the PR only
+          reviewdog -f=diff -f.diff.strip=1 -name="vionix gha timeout" -reporter=github-pr-review -tee -filter-mode=nofilter < "${{ steps.timeout.outputs.diff_file }}"
 
       - name: Fail workflow
         if: inputs.fail-on-error && (steps.pin.outputs.has_changes == 'true' || steps.timeout.outputs.has_changes == 'true')
