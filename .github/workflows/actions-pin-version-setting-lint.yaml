@@ -117,7 +117,7 @@ jobs:
           # The token from the workflow itself, serving the pin for the ghes repos
           # GHES_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # When there's an OSS github marketplace action, then we need SaaS token
-          # GITHUB_TOKEN: ${{ steps.gh-app-token.outputs.token }} Automatically placed by the job
+          GITHUB_TOKEN: ${{ github.token }} # Automatically placed by the job
           IGNORE_OWNERS: ${{ inputs.ignore-owners }}
           IGNORE_DIRS: ${{ inputs.ignore-dirs }}
           USE_STRICT_PINNING: ${{ inputs.use-strict-pinning }}
