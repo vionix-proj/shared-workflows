@@ -1,5 +1,4 @@
-name: docker-multiarch
-
+# Reusable workflow for the docker multi-architect CICD
 on:
   workflow_call:
     inputs:
@@ -12,7 +11,6 @@ on:
         description: Bake target service name.
         required: false
         type: string
-        default: gha-fix
       platforms:
         description: Platforms used by docker buildx bake.
         required: false
@@ -38,12 +36,8 @@ on:
         required: false
         type: string
         default: "false"
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-  push:
-    tags:
-      - 'v*'
 
+# Set of permissions needed by the workflow
 permissions:
   contents: write
   packages: write
@@ -52,10 +46,10 @@ permissions:
   artifact-metadata: write
   pull-requests: write
 
+# Default registry for ALL builds
 env:
-  # Default registry for ALL builds
   REGISTRY: ${{ inputs.registry || 'ghcr.io' }}
-  TARGET_SERVICE: ${{ inputs.target-service || 'gha-fix' }}
+  TARGET_SERVICE: ${{ inputs.target-service }}
   PLATFORMS: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
   # IMPORTANT: This must match the actual file in your repo AND be consistent across all jobs.
   # If your repo uses docker-compose.yml, change this to docker-compose.yml.
@@ -77,6 +71,7 @@ concurrency:
 
 jobs:
   pr-build:
+    name: 🏗️ pr-build 
     timeout-minutes: 10
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     runs-on: ubuntu-latest
@@ -269,6 +264,7 @@ jobs:
             }
 
   pr-delete:
+    name: 🗑️ delete
     timeout-minutes: 5
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
@@ -295,6 +291,7 @@ jobs:
           curl -sSfL -X DELETE -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GITHUB_API_URL}${PATH}"
 
   publish-on-merge:
+    name: 🚀 pr-merge
     timeout-minutes: 10
     if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     runs-on: ubuntu-latest
@@ -367,6 +364,28 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
           flavor: latest=false
+
+      - name: Resolve target service from compose (when unset)
+        if: env.TARGET_SERVICE == ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t SERVICES < <(docker compose -f "${{ env.DOCKER_COMPOSE_FILE_NAME }}" config --services)
+
+          if [ "${#SERVICES[@]}" -eq 0 ]; then
+            echo "::error::No services were found in ${{ env.DOCKER_COMPOSE_FILE_NAME }}."
+            exit 1
+          fi
+
+          if [ "${#SERVICES[@]}" -eq 1 ]; then
+            echo "Single compose service detected: ${SERVICES[0]}"
+            echo "TARGET_SERVICE=${SERVICES[0]}" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "::error::Multiple services found in ${{ env.DOCKER_COMPOSE_FILE_NAME }}: ${SERVICES[*]}"
+          echo "::error::Please set input 'target-service' to the service you want to build."
+          exit 1
 
       # IMPORTANT: Push ONLY branch-shortsha (no branch / no latest)
       - name: Build and push (merge) -> push only branch-shortsha
@@ -484,6 +503,7 @@ jobs:
             }
 
   release-build:
+    name: 🏷️ release 
     timeout-minutes: 10
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
