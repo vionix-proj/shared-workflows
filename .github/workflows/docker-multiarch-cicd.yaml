@@ -1,5 +1,4 @@
-name: docker-multiarch
-
+# Reusable workflow for the docker multi-architect CICD
 on:
   workflow_call:
     inputs:
@@ -38,12 +37,8 @@ on:
         required: false
         type: string
         default: "false"
-  pull_request:
-    types: [opened, synchronize, reopened, closed]
-  push:
-    tags:
-      - 'v*'
 
+# Set of permissions needed by the workflow
 permissions:
   contents: write
   packages: write
