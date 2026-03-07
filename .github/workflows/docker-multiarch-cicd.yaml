@@ -36,6 +36,14 @@ on:
         required: false
         type: string
         default: "false"
+      dockerhub-registry-username:
+        description: Optional Docker Hub registry username to publish images.
+        required: false
+        type: string
+      dockerhub-registry-token:
+        description: Optional Docker Hub registry token to publish images.
+        required: false
+        type: string
 
 # Set of permissions needed by the workflow
 permissions:
@@ -660,8 +668,8 @@ jobs:
         id: dh_creds
         shell: bash
         env:
-          DOCKER_REGISTRY_USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
-          DOCKER_REGISTRY_TOKEN: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+          DOCKER_REGISTRY_USERNAME: ${{ inputs.dockerhub-registry-username }}
+          DOCKER_REGISTRY_TOKEN: ${{ inputs.dockerhub-registry-token }}
         run: |
           set -euo pipefail
           if [ -n "${DOCKER_REGISTRY_USERNAME}" ] && [ -n "${DOCKER_REGISTRY_TOKEN}" ]; then
@@ -673,8 +681,8 @@ jobs:
       - name: Login to Docker Hub (optional)
         if: steps.dh_creds.outputs.enabled == 'true'
         env:
-          DOCKER_REGISTRY_USERNAME: ${{ secrets.DOCKER_REGISTRY_USERNAME }}
-          DOCKER_REGISTRY_TOKEN: ${{ secrets.DOCKER_REGISTRY_TOKEN }}
+          DOCKER_REGISTRY_USERNAME: ${{ inputs.dockerhub-registry-username }}
+          DOCKER_REGISTRY_TOKEN: ${{ inputs.dockerhub-registry-token }}
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
           registry: ${{ env.DOCKERHUB_REGISTRY }}
