@@ -11,7 +11,6 @@ on:
         description: Bake target service name.
         required: false
         type: string
-        default: gha-fix
       platforms:
         description: Platforms used by docker buildx bake.
         required: false
@@ -47,10 +46,10 @@ permissions:
   artifact-metadata: write
   pull-requests: write
 
+# Default registry for ALL builds
 env:
-  # Default registry for ALL builds
   REGISTRY: ${{ inputs.registry || 'ghcr.io' }}
-  TARGET_SERVICE: ${{ inputs.target-service || 'gha-fix' }}
+  TARGET_SERVICE: ${{ inputs.target-service }}
   PLATFORMS: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
   # IMPORTANT: This must match the actual file in your repo AND be consistent across all jobs.
   # If your repo uses docker-compose.yml, change this to docker-compose.yml.
