@@ -161,21 +161,19 @@ jobs:
       - name: Build (PR) -> push only PR+SHA tags (no latest)
         id: bake_pr
         uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
-        env:
-          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         with:
           files: |
             ${{ env.DOCKER_COMPOSE_FILE_NAME }}
             ${{ steps.meta.outputs.bake-file-labels }}
-          targets: ${{ env.TARGET_SERVICE }}
+          targets: ${{ steps.compose-metadata.outputs.target-service }}
           push: true
           builder: ${{ steps.buildx.outputs.name }}
           set: |
-            ${{ env.TARGET_SERVICE }}.platform=${{ env.PLATFORMS }}
-            ${{ env.TARGET_SERVICE }}.tags=${{ steps.vars.outputs.ghcr_image_base }}/pr/${{ steps.vars.outputs.pr }}:${{ steps.vars.outputs.full_sha }}
-            ${{ env.TARGET_SERVICE }}.tags=${{ steps.vars.outputs.ghcr_image_base }}/pr/${{ steps.vars.outputs.pr }}:${{ steps.vars.outputs.short_sha }}
-            ${{ env.TARGET_SERVICE }}.cache-from=type=gha,scope=${{ env.TARGET_SERVICE }}
-            ${{ env.TARGET_SERVICE }}.cache-to=type=gha,mode=max,scope=${{ env.TARGET_SERVICE }}
+            ${{ steps.compose-metadata.outputs.target-service }}.platform=${{ env.PLATFORMS }}
+            ${{ steps.compose-metadata.outputs.target-service }}.tags=${{ steps.vars.outputs.ghcr_image_base }}/pr/${{ steps.vars.outputs.pr }}:${{ steps.vars.outputs.full_sha }}
+            ${{ steps.compose-metadata.outputs.target-service }}.tags=${{ steps.vars.outputs.ghcr_image_base }}/pr/${{ steps.vars.outputs.pr }}:${{ steps.vars.outputs.short_sha }}
+            ${{ steps.compose-metadata.outputs.target-service }}.cache-from=type=gha,scope=${{ steps.compose-metadata.outputs.target-service }}
+            ${{ steps.compose-metadata.outputs.target-service }}.cache-to=type=gha,mode=max,scope=${{ steps.compose-metadata.outputs.target-service }}
 
       - name: Resolve image digest (PR)
         id: pr_digest
@@ -388,20 +386,18 @@ jobs:
       - name: Build and push (merge) -> push only branch-shortsha
         id: bake_merge
         uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
-        env:
-          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         with:
           files: |
             ${{ env.DOCKER_COMPOSE_FILE_NAME }}
             ${{ steps.meta.outputs.bake-file-labels }}
-          targets: ${{ env.TARGET_SERVICE }}
+          targets: ${{ steps.compose-metadata.outputs.target-service }}
           push: true
           builder: ${{ steps.buildx.outputs.name }}
           set: |
-            ${{ env.TARGET_SERVICE }}.platform=${{ env.PLATFORMS }}
-            ${{ env.TARGET_SERVICE }}.tags=${{ steps.merge_vars.outputs.ghcr_image_base }}:${{ steps.merge_vars.outputs.branch }}-${{ steps.merge_vars.outputs.short_sha }}
-            ${{ env.TARGET_SERVICE }}.cache-from=type=gha,scope=${{ env.TARGET_SERVICE }}
-            ${{ env.TARGET_SERVICE }}.cache-to=type=gha,mode=max,scope=${{ env.TARGET_SERVICE }}
+            ${{ steps.compose-metadata.outputs.target-service }}.platform=${{ env.PLATFORMS }}
+            ${{ steps.compose-metadata.outputs.target-service }}.tags=${{ steps.merge_vars.outputs.ghcr_image_base }}:${{ steps.merge_vars.outputs.branch }}-${{ steps.merge_vars.outputs.short_sha }}
+            ${{ steps.compose-metadata.outputs.target-service }}.cache-from=type=gha,scope=${{ steps.compose-metadata.outputs.target-service }}
+            ${{ steps.compose-metadata.outputs.target-service }}.cache-to=type=gha,mode=max,scope=${{ steps.compose-metadata.outputs.target-service }}
 
       - name: Resolve image digest (merge)
         id: merge_digest
@@ -585,21 +581,19 @@ jobs:
       - name: Build and push (tag) -> push tag and tag-shortsha
         id: bake_tag
         uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
-        env:
-          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         with:
           files: |
             ${{ env.DOCKER_COMPOSE_FILE_NAME }}
             ${{ steps.meta.outputs.bake-file-labels }}
-          targets: ${{ env.TARGET_SERVICE }}
+          targets: ${{ steps.compose-metadata.outputs.target-service }}
           push: true
           builder: ${{ steps.buildx.outputs.name }}
           set: |
-            ${{ env.TARGET_SERVICE }}.platform=${{ env.PLATFORMS }}
-            ${{ env.TARGET_SERVICE }}.tags=${{ steps.vars.outputs.ghcr_image_base }}:${{ steps.vars.outputs.tag }}
-            ${{ env.TARGET_SERVICE }}.tags=${{ steps.vars.outputs.ghcr_image_base }}:${{ steps.vars.outputs.tag }}-${{ steps.vars.outputs.short_sha }}
-            ${{ env.TARGET_SERVICE }}.cache-from=type=gha,scope=${{ env.TARGET_SERVICE }}
-            ${{ env.TARGET_SERVICE }}.cache-to=type=gha,mode=max,scope=${{ env.TARGET_SERVICE }}
+            ${{ steps.compose-metadata.outputs.target-service }}.platform=${{ env.PLATFORMS }}
+            ${{ steps.compose-metadata.outputs.target-service }}.tags=${{ steps.vars.outputs.ghcr_image_base }}:${{ steps.vars.outputs.tag }}
+            ${{ steps.compose-metadata.outputs.target-service }}.tags=${{ steps.vars.outputs.ghcr_image_base }}:${{ steps.vars.outputs.tag }}-${{ steps.vars.outputs.short_sha }}
+            ${{ steps.compose-metadata.outputs.target-service }}.cache-from=type=gha,scope=${{ steps.compose-metadata.outputs.target-service }}
+            ${{ steps.compose-metadata.outputs.target-service }}.cache-to=type=gha,mode=max,scope=${{ steps.compose-metadata.outputs.target-service }}
 
       - name: Resolve image digest (tag)
         id: tag_digest
