@@ -87,6 +87,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      - name: Resolve target service from compose (when unset)
+        id: compose-metadata
+        uses: vionix-proj/actions/docker/compose/metadata@main
+
       - name: Verify bake targets from compose file
         shell: bash
         run: |
@@ -158,6 +162,8 @@ jobs:
       - name: Build (PR) -> push only PR+SHA tags (no latest)
         id: bake_pr
         uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
+        env:
+          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         with:
           files: |
             ${{ env.DOCKER_COMPOSE_FILE_NAME }}
@@ -176,7 +182,7 @@ jobs:
         id: pr_digest
         shell: bash
         env:
-          TARGET_SERVICE: ${{ env.TARGET_SERVICE }}
+          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         run: |
           set -euo pipefail
           META_JSON='${{ steps.bake_pr.outputs.metadata }}'
@@ -309,6 +315,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.ref }}
 
+      - name: Resolve target service from compose (when unset)
+        id: compose-metadata
+        uses: vionix-proj/actions/docker/compose/metadata@main
+
       - name: Verify bake targets from compose file
         shell: bash
         run: |
@@ -373,32 +383,12 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           flavor: latest=false
 
-      - name: Resolve target service from compose (when unset)
-        if: env.TARGET_SERVICE == ''
-        shell: bash
-        run: |
-          set -euo pipefail
-          mapfile -t SERVICES < <(docker compose -f "${{ env.DOCKER_COMPOSE_FILE_NAME }}" config --services)
-
-          if [ "${#SERVICES[@]}" -eq 0 ]; then
-            echo "::error::No services were found in ${{ env.DOCKER_COMPOSE_FILE_NAME }}."
-            exit 1
-          fi
-
-          if [ "${#SERVICES[@]}" -eq 1 ]; then
-            echo "Single compose service detected: ${SERVICES[0]}"
-            echo "TARGET_SERVICE=${SERVICES[0]}" >> "$GITHUB_ENV"
-            exit 0
-          fi
-
-          echo "::error::Multiple services found in ${{ env.DOCKER_COMPOSE_FILE_NAME }}: ${SERVICES[*]}"
-          echo "::error::Please set input 'target-service' to the service you want to build."
-          exit 1
-
       # IMPORTANT: Push ONLY branch-shortsha (no branch / no latest)
       - name: Build and push (merge) -> push only branch-shortsha
         id: bake_merge
         uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
+        env:
+          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         with:
           files: |
             ${{ env.DOCKER_COMPOSE_FILE_NAME }}
@@ -416,7 +406,7 @@ jobs:
         id: merge_digest
         shell: bash
         env:
-          TARGET_SERVICE: ${{ env.TARGET_SERVICE }}
+          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         run: |
           set -euo pipefail
           META_JSON='${{ steps.bake_merge.outputs.metadata }}'
@@ -519,6 +509,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
+      - name: Resolve target service from compose (when unset)
+        id: compose-metadata
+        uses: vionix-proj/actions/docker/compose/metadata@main
+
       - name: Verify bake targets from compose file
         shell: bash
         run: |
@@ -588,6 +582,8 @@ jobs:
       - name: Build and push (tag) -> push tag and tag-shortsha
         id: bake_tag
         uses: docker/bake-action@4a9a8d494466d37134e2bfca2d3a8de8fb2681ad # v5.13.0
+        env:
+          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         with:
           files: |
             ${{ env.DOCKER_COMPOSE_FILE_NAME }}
@@ -606,7 +602,7 @@ jobs:
         id: tag_digest
         shell: bash
         env:
-          TARGET_SERVICE: ${{ env.TARGET_SERVICE }}
+          TARGET_SERVICE: ${{ steps.compose-metadata.outputs.target-service }}
         run: |
           set -euo pipefail
           META_JSON='${{ steps.bake_tag.outputs.metadata }}'
