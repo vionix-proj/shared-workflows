@@ -57,11 +57,8 @@ permissions:
 # Default registry for ALL builds
 env:
   REGISTRY: ${{ inputs.registry || 'ghcr.io' }}
-  TARGET_SERVICE: ${{ inputs.target-service }}
   PLATFORMS: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
-  # IMPORTANT: This must match the actual file in your repo AND be consistent across all jobs.
-  # If your repo uses docker-compose.yml, change this to docker-compose.yml.
-  DOCKER_COMPOSE_FILE_NAME: ${{ inputs.docker-compose-file-name || 'docker-compose.yaml' }}
+  DOCKER_COMPOSE_FILE_NAME: ${{ inputs.docker-compose-file-name }}
 
   # Optional Docker Hub settings (only used on tag builds AND only if DOCKER_REGISTRY_TOKEN is set)
   DOCKERHUB_REGISTRY: ${{ inputs.dockerhub-registry || 'docker.io' }}
@@ -87,9 +84,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Resolve target service from compose (when unset)
+      - name: Loads docker compose properties
         id: compose-metadata
         uses: vionix-proj/actions/docker/compose/metadata@main
+        with:
+          compose-path: ${{ inputs.docker-compose-file-name }}
 
       - name: Verify bake targets from compose file
         shell: bash
@@ -315,9 +314,11 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.base.ref }}
 
-      - name: Resolve target service from compose (when unset)
+      - name: Loads docker compose properties
         id: compose-metadata
         uses: vionix-proj/actions/docker/compose/metadata@main
+        with:
+          compose-path: ${{ inputs.docker-compose-file-name }}
 
       - name: Verify bake targets from compose file
         shell: bash
@@ -509,9 +510,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
-      - name: Resolve target service from compose (when unset)
+      - name: Loads docker compose properties
         id: compose-metadata
         uses: vionix-proj/actions/docker/compose/metadata@main
+        with:
+          compose-path: ${{ inputs.docker-compose-file-name }}
 
       - name: Verify bake targets from compose file
         shell: bash
