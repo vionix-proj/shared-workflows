@@ -311,8 +311,7 @@ jobs:
           OWNER_TYPE: ${{ github.event.repository.owner.type }}
           PKG_NAME: ${{ github.event.repository.name }}/pr/${{ github.event.pull_request.number }}
         with:
-          args: -sSfL -X DELETE -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GITHUB_API_URL}${PATH}"
-
+          args: '-sSfL -X DELETE -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GITHUB_API_URL}${PATH}"'
 
   publish-on-merge:
     name: 🚀 pr-merge
