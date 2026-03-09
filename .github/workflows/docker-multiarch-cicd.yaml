@@ -304,8 +304,12 @@ jobs:
             PATH="/users/${REPO_OWNER}/packages/container/${ENCODED}"
           fi
 
-          echo "Deleting GHCR package: ${PKG_NAME}"
-          echo curl -sSfL -X DELETE -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GITHUB_API_URL}${PATH}"
+          echo "# 🗑️ Delete PR  Github Container Registry packages" >> $GITHUB_STEP_SUMMARY
+          echo "* Path: ${PATH}" >> $GITHUB_STEP_SUMMARY
+          echo "* Package Name: ${PKG_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "* API: ${GITHUB_API_URL}${PATH}" >> $GITHUB_STEP_SUMMARY
+
+          curl -sSfL -X DELETE -H "Accept: application/vnd.github+json" -H "Authorization: Bearer ${GITHUB_TOKEN}" "${GITHUB_API_URL}${PATH}"
 
   publish-on-merge:
     name: 🚀 pr-merge
