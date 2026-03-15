@@ -1,5 +1,4 @@
-name: actions-pin-version-setting-lint
-
+# Workflow to pin versions of github actions
 on: 
   workflow_call:
     inputs:
